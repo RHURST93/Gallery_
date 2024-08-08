@@ -1,8 +1,8 @@
 # Gallery_
 
 Gallery Screen
+![gallery1](https://github.com/user-attachments/assets/d5165d58-fb7d-4836-a361-39291923c039)
 
-![gallery1](https://github.com/user-attachments/assets/4ce8bf40-c6b6-45e5-9acb-a1e7b8dced48)
 
 Album Screen
 
