@@ -86,7 +86,7 @@ const AlbumsScreen: React.FC = () => {
     }
   };
 
-  const createAlbum = async () => {
+  const createAlbum = () => {
     setIsNamingAlbum(true); 
   };
 
@@ -125,8 +125,13 @@ const AlbumsScreen: React.FC = () => {
         }
 
         await MediaLibrary.addAssetsToAlbumAsync(mediaAssets, newAlbum, false);
-        await loadAlbums(); 
+        await loadAlbums(); // Refresh the albums list
         alert(`Album '${newAlbumName}' created and photos added!`);
+        await saveAlbumsToStorage([...albums, {
+          id: newAlbum.id,
+          title: newAlbum.title,
+          previewUri: await getAlbumPreviewUri(newAlbum.id),
+        }]); // Save albums after creating new one
       } catch (error) {
         if (error instanceof Error) {
           console.error('Failed to create album:', error.message);
@@ -154,8 +159,9 @@ const AlbumsScreen: React.FC = () => {
           onPress: async () => {
             try {
               await MediaLibrary.deleteAlbumsAsync([albumId], true);
-              await loadAlbums(); 
+              await loadAlbums(); // Refresh the albums list
               alert('Album deleted successfully.');
+              await saveAlbumsToStorage(albums.filter(album => album.id !== albumId)); // Update storage after deletion
             } catch (error) {
               console.error('Failed to delete album:', error);
               alert('Failed to delete album.');
