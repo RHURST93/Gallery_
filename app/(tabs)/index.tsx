@@ -1,70 +1,156 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, FlatList, Image, TouchableOpacity, StyleSheet, Text, Alert } from 'react-native';
+import * as MediaLibrary from 'expo-media-library';
+import { MaterialIcons } from '@expo/vector-icons'; // Import icon library
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+const albumName = 'Gallery'; 
 
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({ ios: 'cmd + d', android: 'cmd + m' })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
+interface Photo {
+  id: string;
+  uri: string;
 }
 
+const GalleryScreen: React.FC = () => {
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [filteredPhotos, setFilteredPhotos] = useState<Photo[]>([]);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [hasSavedOnce, setHasSavedOnce] = useState<boolean>(false);
+  const navigation = useNavigation<NavigationProp<any>>();
+
+  useEffect(() => {
+    if (!hasSavedOnce) {
+      saveAllPhotosToAlbum();
+    } else {
+      loadPhotos(); // Ensure photos are loaded initially and updated after saving
+    }
+  }, [hasSavedOnce]);
+
+  const saveAllPhotosToAlbum = async () => {
+    setIsSaving(true);
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Permission to access media library is required!');
+        setIsSaving(false);
+        return;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const { assets, totalCount } = await MediaLibrary.getAssetsAsync({ mediaType: ['photo'] });
+
+      if (totalCount === 0) {
+        alert('No photos found to save.');
+        setIsSaving(false);
+        return;
+      }
+
+      if (assets.length !== totalCount) {
+        console.warn(`Requested ${totalCount} assets, but only got ${assets.length}.`);
+        alert(`Could not get all the requested assets. Only ${assets.length} out of ${totalCount} assets were fetched.`);
+      }
+
+      let album = await MediaLibrary.getAlbumAsync(albumName);
+      if (!album) {
+        album = await MediaLibrary.createAlbumAsync(albumName, assets[0], false);
+      }
+
+      await MediaLibrary.addAssetsToAlbumAsync(assets, album, false);
+      alert('All photos have been saved to the album.');
+      setHasSavedOnce(true);
+    } catch (error) {
+      console.error('Failed to save photos:', error);
+      alert('Failed to save photos.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const loadPhotos = async () => {
+    try {
+      const album = await MediaLibrary.getAlbumAsync(albumName);
+      if (album) {
+        const { assets } = await MediaLibrary.getAssetsAsync({
+          album,
+          sortBy: ['creationTime'],
+          mediaType: ['photo'],
+        });
+        setPhotos(assets);
+        setFilteredPhotos(assets);
+      } else {
+        console.warn(`Album ${albumName} not found.`);
+        setPhotos([]);
+        setFilteredPhotos([]);
+      }
+    } catch (error) {
+      console.error('Failed to load photos:', error);
+    }
+  };
+
+  const deletePhoto = async (id: string) => {
+    try {
+      await MediaLibrary.deleteAssetsAsync([id]);
+      console.log('Photo deleted successfully.');
+      alert('Photo deleted successfully.');
+      loadPhotos(); // Refresh the gallery after deletion
+    } catch (error) {
+      console.error('Failed to delete photo:', error);
+      alert('Failed to delete photo.');
+    }
+  };
+
+  const handleLongPress = (id: string) => {
+    Alert.alert(
+      "Delete Photo",
+      "Are you sure you want to delete this photo?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", onPress: () => deletePhoto(id) }
+      ]
+    );
+  };
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerTitle: 'Gallery',
+      headerRight: () => (
+        <TouchableOpacity onPress={saveAllPhotosToAlbum} style={styles.syncButton}>
+          <MaterialIcons name="sync" size={24} color="white" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, saveAllPhotosToAlbum]);
+
+  return (
+    <View style={styles.container}>
+      {isSaving ? (
+        <Text>Saving photos...</Text>
+      ) : (
+        <FlatList
+          data={filteredPhotos}
+          keyExtractor={(item) => item.id}
+          numColumns={3}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              onLongPress={() => handleLongPress(item.id)}
+              style={styles.photoContainer}
+            >
+              <Image source={{ uri: item.uri }} style={styles.photo} />
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={<Text>No photos available.</Text>}
+        />
+      )}
+    </View>
+  );
+};
+
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  container: { flex: 1, padding: 5, backgroundColor: '#36454F' },
+  photoContainer: { margin: 5, alignItems: 'center', justifyContent: 'center' },
+  photo: { width: 100, height: 100 },
+  syncButton: { marginRight: 10 },
 });
+
+export default GalleryScreen;
