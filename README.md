@@ -17,8 +17,8 @@ This app is built with React Native, Typescript, and Expo to harness the power o
 
 ## Album Screen
 
+<img width="392" alt="updated" src="https://github.com/user-attachments/assets/df21c22d-fd8b-40dc-b488-eac67c5604ee">
 
-<img width="392" alt="gallery1" src="https://github.com/user-attachments/assets/13102939-3a68-499c-a523-fffb452d4edc">
 
 
 ## Installation
